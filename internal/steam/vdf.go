@@ -33,6 +33,20 @@ type Scripts struct {
 	BuildOutput string            `json:"build_output,omitempty" yaml:"build_output,omitempty"`
 }
 
+type depotTarget struct {
+	name   string
+	target config.Target
+}
+
+func groupDepotTargets(profile config.Profile, names []string) map[uint64][]depotTarget {
+	groups := map[uint64][]depotTarget{}
+	for _, name := range names {
+		target := profile.Targets[name]
+		groups[target.DepotID] = append(groups[target.DepotID], depotTarget{name: name, target: target})
+	}
+	return groups
+}
+
 func Generate(document *config.Document, profileName string, selected []string, options ScriptOptions) (Scripts, error) {
 	selection, existingPath, err := selectScriptInputs(document, profileName, selected, options)
 	if err != nil {
@@ -60,11 +74,7 @@ func Generate(document *config.Document, profileName string, selected []string, 
 		buildOutput = filepath.Join(buildOutput, runID)
 	}
 	scripts.BuildOutput = buildOutput
-	depotTargets := map[uint64][]config.Target{}
-	for _, name := range targetNames {
-		target := profile.Targets[name]
-		depotTargets[target.DepotID] = append(depotTargets[target.DepotID], target)
-	}
+	depotTargets := groupDepotTargets(profile, targetNames)
 	depotContents := make(map[uint64]string, len(depotTargets))
 	for depotID, targets := range depotTargets {
 		path := filepath.Join(directory, fmt.Sprintf("depot_build_%d.vdf", depotID))
@@ -292,6 +302,12 @@ func validateGeneratedScriptInputs(document *config.Document, selection config.S
 			}
 		}
 	}
+	// Check the rebased paths and default destinations before a build starts.
+	for _, targets := range groupDepotTargets(profile, selection.TargetNames) {
+		if _, err := depotVDF(document, targets); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -393,20 +409,29 @@ func appVDF(profile config.Profile, scripts Scripts, buildOutput string, options
 	return builder.String(), builder.err
 }
 
-func depotVDF(document *config.Document, targets []config.Target) (string, error) {
+func depotVDF(document *config.Document, targets []depotTarget) (string, error) {
+	contentRoot, prefixes, err := depotContentRoot(document, targets)
+	if err != nil {
+		return "", err
+	}
 	var builder vdfBuilder
-	first := targets[0]
+	first := targets[0].target
 	builder.line(0, `"DepotBuild"`)
 	builder.line(0, `{`)
 	builder.pair(1, "DepotID", fmt.Sprint(first.DepotID))
-	builder.pair(1, "ContentRoot", document.ResolveProject(first.Content))
-	for _, target := range targets {
-		mappings := target.Mappings
+	builder.pair(1, "ContentRoot", contentRoot)
+	for i, entry := range targets {
+		mappings := entry.target.Mappings
 		if len(mappings) == 0 {
-			mappings = []config.FileMapping{{}}
+			mapping := config.FileMapping{}
+			if len(targets) > 1 {
+				mapping.DepotPath = entry.name
+			}
+			mappings = []config.FileMapping{mapping}
 		}
 		for _, mapping := range mappings {
 			local, depot, recursive := mapping.Values()
+			local = rebaseDepotPath(prefixes[i], local)
 			builder.line(1, `"FileMapping"`)
 			builder.line(1, `{`)
 			builder.pathPair(2, "LocalPath", local)
@@ -420,14 +445,66 @@ func depotVDF(document *config.Document, targets []config.Target) (string, error
 		}
 	}
 	exclusions := []string{"*.gitkeep"}
-	for _, target := range targets {
-		exclusions = append(exclusions, target.Exclusions...)
+	for i, entry := range targets {
+		for _, exclusion := range entry.target.Exclusions {
+			exclusions = append(exclusions, rebaseDepotPath(prefixes[i], exclusion))
+		}
 	}
 	for _, exclusion := range exclusions {
 		builder.pathPair(1, "FileExclusion", exclusion)
 	}
 	builder.line(0, `}`)
 	return builder.String(), builder.err
+}
+
+// Steam permits one content root per depot. Refer to each target from their
+// nearest common ancestor while keeping its mappings relative to its own root.
+func depotContentRoot(document *config.Document, targets []depotTarget) (string, []string, error) {
+	root := document.ResolveProject(targets[0].target.Content)
+	for _, entry := range targets[1:] {
+		content := document.ResolveProject(entry.target.Content)
+		for {
+			relative, err := filepath.Rel(root, content)
+			if err != nil {
+				return "", nil, fmt.Errorf("depot %d content directories must be on the same volume: %w", entry.target.DepotID, err)
+			}
+			if relative == "." || filepath.IsLocal(relative) {
+				break
+			}
+			parent := filepath.Dir(root)
+			if parent == root {
+				return "", nil, fmt.Errorf("depot %d content directories have no common root", entry.target.DepotID)
+			}
+			root = parent
+		}
+	}
+	prefixes := make([]string, len(targets))
+	for i, entry := range targets {
+		relative, err := filepath.Rel(root, document.ResolveProject(entry.target.Content))
+		if err != nil {
+			return "", nil, fmt.Errorf("resolve depot %d content for target %q: %w", entry.target.DepotID, entry.name, err)
+		}
+		if relative == "." {
+			continue
+		}
+		// These characters would be interpreted as Steam wildcards or path
+		// separators rather than literal directory names in a LocalPath.
+		if strings.ContainsAny(relative, "*?") || (filepath.Separator != '\\' && strings.Contains(relative, `\`)) {
+			return "", nil, fmt.Errorf("target %q content directory cannot contain wildcard or backslash characters when sharing a depot", entry.name)
+		}
+		prefixes[i] = filepath.ToSlash(relative)
+		if err := validateMappingPath(fmt.Sprintf("target %q content path within shared depot", entry.name), prefixes[i]); err != nil {
+			return "", nil, err
+		}
+	}
+	return root, prefixes, nil
+}
+
+func rebaseDepotPath(prefix, path string) string {
+	if prefix == "" {
+		return path
+	}
+	return prefix + "/" + path
 }
 
 type vdfBuilder struct {

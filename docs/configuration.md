@@ -321,13 +321,37 @@ mappings:
 exclusions: ["*.pdb"]
 ```
 
-Targets may share a depot ID when they have the same `content` directory and
-each defines its own file mappings. Steam Releaser combines those mappings into
-one depot script. For example, a Godot project can export three platforms into
-`builds/steam` while mapping `windows/*`, `macos/*`, and `linux/*` to their
-respective depot subdirectories. Build targets can be selected individually,
-but an upload must include every target sharing that depot ID. An exclusion on
-any shared target applies to the entire depot.
+Targets may use separate depot IDs or share one depot ID. With different
+content directories, targets sharing a depot default to uploading each
+directory into a depot folder named after the target. For example:
+
+```yaml
+targets:
+  linux:
+    depot_id: 1000001
+    content: builds/linux
+  macos:
+    depot_id: 1000001
+    content: builds/macos
+  windows:
+    depot_id: 1000002
+    content: builds/windows
+```
+
+The shared depot contains `linux/` and `macos/`; the separate Windows depot
+contains the Windows content at its root. Configuration creation writes the
+shared targets' default mappings into the YAML, so their destinations can be
+edited. Explicit mappings and exclusions remain relative to each target's
+`content` directory. Steam Releaser combines mappings for a shared depot into
+one script using a common content root. On Windows, the directories must be on
+the same drive or network share.
+If content directories overlap, each target needs explicit mappings. For
+example, targets with the same `builds/steam` content directory can map
+`windows/*`, `macos/*`, and `linux/*` to their respective depot folders.
+Each exclusion applies to the shared depot and is rebased from its target's
+content directory, so it can also filter another target's files when their
+content overlaps. Build targets can be selected individually, but an upload
+must include every target sharing that depot ID.
 
 For post-build copies, sources are globs relative to the project root and
 `to` is relative to each selected target's content directory:

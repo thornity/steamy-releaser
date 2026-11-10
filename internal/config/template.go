@@ -78,7 +78,7 @@ func annotatedConfig(value fileConfig) ([]byte, error) {
 				configExample{"architecture", "Architecture is descriptive; engine build settings select the actual architecture.", "architecture: x64"},
 				configExample{"content", "Upload directory relative to the project folder; defaults to the parent of output.", "content: " + strings.TrimSpace(string(contentYAML))},
 				configExample{"required", "Required files, as globs relative to content, checked before uploading.", "required: [\"**/*\"]"},
-				configExample{"mappings", "Steam file mappings. The default uploads all content recursively.", "mappings:\n  - local_path: \"*\"\n    depot_path: .\n    recursive: true"},
+				configExample{"mappings", "Steam file mappings. By default all content is uploaded recursively, into a target-named folder for shared depots.", "mappings:\n  - local_path: \"*\"\n    depot_path: .\n    recursive: true"},
 				configExample{"exclusions", "Exclude files relative to content. .gitkeep is excluded by default.", "exclusions: [\"*.pdb\", \"**/.DS_Store\"]"},
 			)
 			build := mappingValue(target, "build")

@@ -135,7 +135,6 @@ func (d *Document) Validate() error {
 		if len(profile.Targets) == 0 {
 			return fmt.Errorf("profile %q must contain at least one target", profileName)
 		}
-		depotIDs := map[uint64]string{}
 		for targetName, target := range profile.Targets {
 			if err := target.Build.ValidateProcessOptions(engine); err != nil {
 				return fmt.Errorf("profile %q target %q: %w", profileName, targetName, err)
@@ -148,17 +147,6 @@ func (d *Document) Validate() error {
 			}
 			if target.DepotID == 0 {
 				return fmt.Errorf("target %q in profile %q has an invalid depot_id", targetName, profileName)
-			}
-			if other, exists := depotIDs[target.DepotID]; exists {
-				previous := profile.Targets[other]
-				if d.ResolveProject(previous.Content) != d.ResolveProject(target.Content) {
-					return fmt.Errorf("targets %q and %q in profile %q share depot_id %d but have different content directories", other, targetName, profileName, target.DepotID)
-				}
-				if len(previous.Mappings) == 0 || len(target.Mappings) == 0 {
-					return fmt.Errorf("targets %q and %q in profile %q share depot_id %d and must define separate mappings", other, targetName, profileName, target.DepotID)
-				}
-			} else {
-				depotIDs[target.DepotID] = targetName
 			}
 			if strings.TrimSpace(target.Output) == "" {
 				if engine == "prebuilt" {
@@ -184,6 +172,28 @@ func (d *Document) Validate() error {
 				}
 			}
 		}
+		// Overlapping content needs explicit mappings so an implicit wildcard
+		// cannot silently include another target's artifacts.
+		names := make([]string, 0, len(profile.Targets))
+		for name := range profile.Targets {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for i, name := range names {
+			target := profile.Targets[name]
+			for _, other := range names[:i] {
+				previous := profile.Targets[other]
+				if previous.DepotID != target.DepotID {
+					continue
+				}
+				if (len(previous.Mappings) == 0 || len(target.Mappings) == 0) && contentPathsOverlap(d.ResolveProject(previous.Content), d.ResolveProject(target.Content)) {
+					return fmt.Errorf("targets %q and %q in profile %q share depot_id %d and overlapping content directories; define separate mappings", other, name, profileName, target.DepotID)
+				}
+				if len(previous.Mappings) == 0 && len(target.Mappings) == 0 && strings.EqualFold(other, name) {
+					return fmt.Errorf("targets %q and %q in profile %q share depot_id %d and would use the same default depot directory; define separate mappings", other, name, profileName, target.DepotID)
+				}
+			}
+		}
 		for _, rule := range profile.PostBuild {
 			if strings.TrimSpace(rule.From) == "" {
 				return fmt.Errorf("profile %q contains a post_build rule without from", profileName)
@@ -196,6 +206,14 @@ func (d *Document) Validate() error {
 		}
 	}
 	return nil
+}
+
+func contentPathsOverlap(first, second string) bool {
+	within := func(parent, child string) bool {
+		relative, err := filepath.Rel(parent, child)
+		return err == nil && (relative == "." || filepath.IsLocal(relative))
+	}
+	return within(first, second) || within(second, first)
 }
 
 func safeName(value string) bool {

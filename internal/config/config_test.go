@@ -68,7 +68,7 @@ profiles: {}
 	}
 }
 
-func TestSharedDepotRequiresCommonContentAndMappings(t *testing.T) {
+func TestSharedDepotContentAndMappings(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "steam-release.yaml")
 	base := `app_id: 100
@@ -92,8 +92,10 @@ targets:
 		want string
 	}{
 		{"valid", base, ""},
-		{"different content", strings.Replace(base, "    content: builds\n    build: {preset: Linux}", "    content: elsewhere\n    build: {preset: Linux}", 1), "different content directories"},
-		{"missing mappings", strings.Replace(base, "    mappings: [{local_path: \"linux/*\", depot_path: linux}]\n", "", 1), "must define separate mappings"},
+		{"different content", strings.Replace(base, "    content: builds\n    build: {preset: Linux}", "    content: elsewhere\n    build: {preset: Linux}", 1), ""},
+		{"missing mappings with common content", strings.Replace(base, "    mappings: [{local_path: \"linux/*\", depot_path: linux}]\n", "", 1), "define separate mappings"},
+		{"overlapping content with explicit mappings", strings.Replace(base, "    content: builds\n    build: {preset: Linux}", "    content: builds/linux\n    build: {preset: Linux}", 1), ""},
+		{"overlapping content with implicit mapping", strings.Replace(strings.Replace(base, "    content: builds\n    build: {preset: Linux}", "    content: builds/linux\n    build: {preset: Linux}", 1), "    mappings: [{local_path: \"linux/*\", depot_path: linux}]\n", "", 1), "overlapping content directories"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := os.WriteFile(path, []byte(test.yaml), 0o600); err != nil {

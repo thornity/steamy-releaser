@@ -116,6 +116,7 @@ func Render(options InitOptions) (*Document, []byte, error) {
 		},
 	}
 	value.Profiles = map[string]Profile{options.Profile: profile}
+	addInitSharedDepotMappings(absolutePath, &value.Config)
 	contents, err := annotatedConfig(value)
 	if err != nil {
 		return nil, nil, err
@@ -125,6 +126,52 @@ func Render(options InitOptions) (*Document, []byte, error) {
 		return nil, nil, fmt.Errorf("cannot initialize configuration: %w", err)
 	}
 	return document, contents, nil
+}
+
+// Make the default shared-depot layout visible and editable in generated YAML.
+// Existing mappings are preserved, and overlapping directories still require
+// the user to specify how to split their contents.
+func addInitSharedDepotMappings(path string, cfg *Config) {
+	document := Document{Path: path, Config: *cfg}
+	for profileName, profile := range cfg.Profiles {
+		for name, target := range profile.Targets {
+			if len(target.Mappings) != 0 {
+				continue
+			}
+			content := initContentPath(&document, target)
+			if content == "" {
+				continue
+			}
+			shared, safe := false, true
+			for otherName, other := range profile.Targets {
+				if name == otherName || target.DepotID != other.DepotID {
+					continue
+				}
+				shared = true
+				otherContent := initContentPath(&document, other)
+				if otherContent == "" || contentPathsOverlap(content, otherContent) ||
+					(len(other.Mappings) == 0 && strings.EqualFold(name, otherName)) {
+					safe = false
+				}
+			}
+			if shared && safe {
+				target.Mappings = []FileMapping{{LocalPath: "*", DepotPath: name}}
+				profile.Targets[name] = target
+			}
+		}
+		cfg.Profiles[profileName] = profile
+	}
+}
+
+func initContentPath(document *Document, target Target) string {
+	content := target.Content
+	if content == "" && target.Output != "" {
+		content = filepath.Dir(target.Output)
+	}
+	if content == "" {
+		return ""
+	}
+	return document.ResolveProject(content)
 }
 
 // TargetFromInit applies the same engine-specific target defaults for CLI and desktop setup.
