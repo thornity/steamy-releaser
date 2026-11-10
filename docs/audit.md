@@ -150,8 +150,10 @@ code is benign, or independently secure the npm CLI, native compilers,
 operating system, or GitHub-hosted runners.
 
 An unchanged-output guard checks configured outputs after their build commands.
-Missing outputs, empty output directories, or unchanged outputs need evidence
-from a newly created or changed post-build source before they can proceed.
+Missing outputs and empty output directories need evidence from a newly created
+or changed post-build source before they can proceed. Unchanged outputs also
+need such evidence, except when the current Unity invocation's isolated log
+reports a successful player build; that case continues with a warning.
 Existing post-build sources that can affect selected content are fingerprinted
 before the build, and unchanged sources cannot replace different content files
 or links. The copy verifies its source bytes again before replacing an output.
@@ -164,9 +166,10 @@ bound the tracked source and destination path sets to one million entries and
 
 The guard does not delete or move project outputs, but earlier copy rules can
 have completed before a later rule is rejected. It is not a provenance check:
-an unrelated change or timestamp update can still mask stale content, and
-deterministic builds that preserve metadata can be rejected. Other programs can
-change files outside the cooperative project lock. The staging and
+an unrelated change or timestamp update can still mask stale content, and a
+Unity success message does not prove that it built the configured output.
+Deterministic builds without a recognized Unity success can be rejected. Other
+programs can change files outside the cooperative project lock. The staging and
 source-identity finding remains open below.
 
 On Unix, post-build and fingerprint checks now open candidate files in
@@ -594,7 +597,7 @@ not claims that the local tool provides an execution sandbox.
 
 | Priority | Finding and trigger | Next step |
 | --- | --- | --- |
-| P1 | **Artifact freshness is unproven.** Missing outputs, empty output directories, or unchanged outputs require evidence from a newly created or changed post-build source. Unchanged sources cannot replace different existing bytes in selected content. Touching a file, changing an unrelated file in an output directory, or creating a new source from stale content can still hide an old artifact. Retry fingerprints detect changes to recorded artifact bytes, tracked files, and non-ignored untracked files, including submodules, but do not fingerprint ignored, external, or otherwise unreported build inputs. | Build into isolated staging and record a source identity covering the actual build inputs. Until then, inspect artifacts before upload and start a fresh build after project changes. |
+| P1 | **Artifact freshness is unproven.** Missing outputs and empty output directories require evidence from a newly created or changed post-build source; unchanged outputs also require it unless Unity reports a successful build in the current log. Unchanged sources cannot replace different existing bytes in selected content. Touching a file, changing an unrelated file in an output directory, creating a new source from stale content, or a Unity build targeting the wrong path can still hide an old artifact. Retry fingerprints detect changes to recorded artifact bytes, tracked files, and non-ignored untracked files, including submodules, but do not fingerprint ignored, external, or otherwise unreported build inputs. | Build into isolated staging and record a source identity covering the actual build inputs. Until then, inspect artifacts before upload and start a fresh build after project changes. |
 | P1 | **Some releases still share mutable paths.** Generated scripts and default Steam output are isolated per upload, but builds and content, explicitly configured Steam output, and user-supplied VDFs may still be shared. The project lock serializes operations for the same resolved project on one machine; other programs, separate project roots, and other machines can still write shared paths. On Windows, different drive mappings to the same directory may not share a lock. Target checks cannot detect every alias or writes outside configured paths, and serialized targets can still overwrite shared files. | Give each build isolated staging paths. Use external coordination for shared projects across machines and review shared artifacts before upload. |
 | P2 | **Existing configuration writes can truncate YAML on failure.** Edits and forced initialization write the existing inode in place to retain its links, ownership, and platform-specific access controls. A disk or I/O failure during the write can still leave incomplete YAML; an external program can race the checks or bypass the lock. | Design a staged replacement that retains the original file's permissions and access controls on each supported platform, including link behavior. Keep a backup until then. |
 | P2 | **An uninterruptible non-file input reader can stall the internal process runner.** Go's process wait can remain blocked copying such a reader after the child exits or the context is cancelled. The desktop uses an OS file pipe, and normal CLI input uses an OS file; an internal caller supplying another reader must ensure it reaches EOF or is closed. | Define and test an interruptible input ownership contract before introducing other long-lived input sources. |

@@ -435,7 +435,25 @@ func (s *Service) runTargetBuilds(ctx context.Context, profileName string, plan 
 					cancel()
 					return
 				}
-				if _, err := s.Runner.Run(ctx, *target.Command, false); err != nil {
+				command := *target.Command
+				var unityLog *unityBuildLog
+				if plan.Engine == "unity" {
+					command, unityLog, err = prepareUnityBuildLog(command)
+					if err != nil {
+						s.Reporter.Report(release.Event{Level: release.LevelWarning, Target: target.Name, Message: fmt.Sprintf("Could not isolate the Unity build log: %v", err)})
+					}
+				}
+				_, runErr := s.Runner.Run(ctx, command, false)
+				unitySucceeded := false
+				if unityLog != nil {
+					var logErr error
+					unitySucceeded, logErr = unityLog.finish()
+					if logErr != nil {
+						s.Reporter.Report(release.Event{Level: release.LevelWarning, Target: target.Name, Message: fmt.Sprintf("Could not preserve or inspect the Unity build log: %v", logErr)})
+					}
+				}
+				if runErr != nil {
+					err := runErr
 					s.Reporter.Report(release.Event{Level: release.LevelError, Target: target.Name, Kind: "build-failed", Message: err.Error()})
 					errorsFound <- err
 					cancel()
@@ -444,11 +462,13 @@ func (s *Service) runTargetBuilds(ctx context.Context, profileName string, plan 
 				after, err := observeOutput(ctx, target.Output)
 				if err != nil {
 					err = fmt.Errorf("inspect output after building %s: %w", target.Name, err)
-				} else if after.info == nil || after.info.IsDir() && !after.hasEntries || before.info != nil && before.unchanged(after) {
+				} else if after.info == nil || after.info.IsDir() && !after.hasEntries || before.info != nil && before.unchanged(after) && !unitySucceeded {
 					pendingMu.Lock()
 					pending[target.Name] = before
 					pendingMu.Unlock()
 					continue
+				} else if before.info != nil && before.unchanged(after) {
+					s.Reporter.Report(release.Event{Level: release.LevelWarning, Target: target.Name, Message: "Unity reported a successful build, but the configured output did not change. Verify the build contents if you expected changes."})
 				}
 				if err != nil {
 					s.Reporter.Report(release.Event{Level: release.LevelError, Target: target.Name, Kind: "build-failed", Message: err.Error()})

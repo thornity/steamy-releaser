@@ -133,12 +133,16 @@ Use a `.zip` output for Godot macOS exports from Windows to retain executable
 permissions. Signing and notarization remain part of your engine or CI workflow.
 
 When a build does not produce an output or leaves an existing output unchanged,
-Steam Releaser requires a newly created or changed post-build source to supply
-it; otherwise the build stops before upload. An unchanged post-build source also
-cannot replace different existing files or links in the selected build content. Static
-files can still be added to content after the build changed its output. Chained
-copy rules may be rejected when their source cannot be verified; arrange for
-the build command to produce the source directly in that case.
+Steam Releaser normally requires a newly created or changed post-build source to
+supply it; otherwise the build stops before upload. Unity can reuse every file
+in an incremental build. If the current Unity log reports a successful player
+build and the output is an existing file or nonempty directory, the build
+continues with a warning.
+An unchanged post-build source cannot replace different existing files or links
+in the selected build content. Static files can still be added when the command
+changed its output or Unity reported success as described above. Chained copy
+rules may be rejected when their source cannot be verified; arrange for the
+build command to produce the source directly in that case.
 
 The checks walk directory outputs and post-build sources, and hash sources that
 can affect the selected content trees. This adds filesystem I/O for large
@@ -147,10 +151,12 @@ and 128 MiB of path names. If a post-build source supplies an output the command
 did not change, the operation continues with a warning.
 
 This is not proof of freshness: touching a file or changing another file in an
-output directory can satisfy the check while an old artifact remains. A build
-that intentionally preserves all output timestamps and metadata can also be
-rejected. For intentionally reused artifacts, review the content and use the
-separate `upload` command or configure a prebuilt project.
+output directory can satisfy the check while an old artifact remains. A Unity
+success message also does not prove that the configured output contains the
+expected game. Builds that preserve all output metadata and do not provide a
+recognized Unity success message can still be rejected. For intentionally reused
+artifacts, review the content and use the separate `upload` command or configure
+a prebuilt project.
 
 ## Defaults and overrides
 
