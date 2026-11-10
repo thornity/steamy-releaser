@@ -259,13 +259,13 @@ version-based matches; reachability has not been established. npm 12.2.2 also
 includes the upstream fix for the
 [bundled undici issue](https://github.com/npm/cli/issues/10163).
 
-CI and release packaging now replace those two bundled packages with signed,
-digest-pinned `glob` 14.0.3 and `minimatch` 11.0.4, plus their pinned
-`path-scurry` 3.0.0 and `@isaacs/nonrecursive-glob-match` 1.0.3 dependencies.
+CI and release packaging replace those two bundled packages with signed,
+digest-pinned `glob` 14.0.4 and `minimatch` 11.0.6, plus their pinned
+`path-scurry` 3.0.0 and `@isaacs/nonrecursive-glob-match` 1.1.0 dependencies.
 Bootstrap validates the original npm package versions, supporting dependencies,
 replacement archive contents, dependency declarations, and current registry
-signatures before activation. The resulting toolchain had no version-level npm
-advisory matches in the November 5 check. These replacements cross npm's
+signatures before activation. The previous pinned versions had no version-level
+npm advisory matches in the November 5 check. These replacements cross npm's
 declared major-version ranges and are not an upstream-supported npm build.
 Because the TUF client uses `minimatch` for delegation paths, registry-key
 verification also requires the currently reviewed signed delegation topology
@@ -509,9 +509,9 @@ enabled when supported for the intended public repository.
   [GO-2026-6604](https://pkg.go.dev/vuln/GO-2026-6604), which affects Windows
   `os.Root` directory creation used by artifact copying, and
   [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) concerning certificate
-  trust. The minimum Go version is now 1.27.3, which includes their fixes.
+  trust. At the time, the minimum Go version was 1.27.3, which includes their fixes.
   Tests and cross-builds during this review ran with the locally available
-  1.27.1; CI uses 1.27.3. The earlier cached vulnerability scanner could
+  1.27.1; CI used 1.27.3. The earlier cached vulnerability scanner could
   not perform a call-graph scan; the newer pinned scanner was able to do so
   with the locally available 1.27.1 compiler.
 - A fresh npm audit reported two high and two moderate findings in development

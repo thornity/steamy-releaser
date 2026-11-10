@@ -51,20 +51,20 @@ async function replacementFixture(t, options = {}) {
   const specs = [
     {
       name: "glob",
-      version: "14.0.3",
+      version: "14.0.4",
       replacesVersion: "13.0.6",
       dependencies: {
-        minimatch: "^11.0.2",
+        minimatch: "^11.0.5",
         minipass: "^7.1.3",
         "path-scurry": "^3.0.0",
       },
     },
     {
       name: "minimatch",
-      version: "11.0.4",
+      version: "11.0.6",
       replacesVersion: "10.2.5",
       dependencies: {
-        "@isaacs/nonrecursive-glob-match": "^1.0.3",
+        "@isaacs/nonrecursive-glob-match": "^1.1.0",
         "brace-expansion": "^5.0.12",
       },
     },
@@ -75,7 +75,7 @@ async function replacementFixture(t, options = {}) {
     },
     {
       name: "@isaacs/nonrecursive-glob-match",
-      version: "1.0.3",
+      version: "1.1.0",
       dependencies: {},
     },
   ];
@@ -228,7 +228,7 @@ test("activates replacements only after pinned and current TUF signature checks"
             "utf8",
           ),
         );
-        assert.equal(glob.version, "14.0.3");
+        assert.equal(glob.version, "14.0.4");
         assert.equal(scurry.version, "3.0.0");
         checks.push("fresh TUF");
       } else checks.push("pinned key");
@@ -250,8 +250,8 @@ test("activates replacements only after pinned and current TUF signature checks"
       "utf8",
     ),
   );
-  assert.equal(minimatch.version, "11.0.4");
-  assert.equal(nonrecursive.version, "1.0.3");
+  assert.equal(minimatch.version, "11.0.6");
+  assert.equal(nonrecursive.version, "1.1.0");
   assert.equal(
     await readFile(env.GITHUB_PATH, "utf8"),
     `${result.shimDirectory}\n`,

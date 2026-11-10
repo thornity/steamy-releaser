@@ -50,7 +50,7 @@ receive GitHub attestations from this workflow.
 
 ## Build from source
 
-Use Go 1.27.3+, a Node.js release allowed by the [frontend engine requirements](../cmd/steam-releaser-desktop/frontend/package.json),
+Use Go 1.27.4+, a Node.js release allowed by the [frontend engine requirements](../cmd/steam-releaser-desktop/frontend/package.json),
 and the native Wails build dependencies for your platform. Release builds use the version
 in [`.nvmrc`](../.nvmrc). The
 [release workflow](../.github/workflows/release.yml) shows the platform setup.

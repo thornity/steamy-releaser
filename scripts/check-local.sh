@@ -20,6 +20,7 @@ expected_go=$(awk '$1 == "go" { print $2; exit }' go.mod)
 actual_go=$(go env GOVERSION)
 if [[ "$actual_go" != "go$expected_go" ]]; then
   printf 'Go %s is required; PATH currently selects %s.\n' "$expected_go" "$actual_go" >&2
+  printf 'This check disables automatic Go toolchain selection; see docs/development.md.\n' >&2
   exit 1
 fi
 expected_node=$(<.nvmrc)

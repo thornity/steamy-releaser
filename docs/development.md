@@ -11,6 +11,17 @@ repository root, run the full local suite:
 bash scripts/check-local.sh
 ```
 
+The check disables Go's automatic toolchain switching, so the `go` executable
+on `PATH` must be the exact version in `go.mod`. If Go's toolchain manager is
+available, these commands select that version and run the suite. The first
+command downloads the toolchain if it is not already cached:
+
+```bash
+steamy_go_version=$(awk '$1 == "go" { print $2; exit }' go.mod)
+GOTOOLCHAIN="go$steamy_go_version" go version
+PATH="$(GOTOOLCHAIN="go$steamy_go_version" go env GOROOT)/bin:$PATH" bash scripts/check-local.sh
+```
+
 The script creates a temporary npm installation and build cache; it does not
 replace your installed Go, Node, or npm. It requires network access to download
 dependencies and consult the package registries and advisory services. It runs

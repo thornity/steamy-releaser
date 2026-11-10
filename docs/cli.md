@@ -9,7 +9,7 @@ Tagged releases package the desktop app and CLI for each supported platform.
 Windows needs WebView2, Linux needs GTK 3/WebKitGTK 4.1, and macOS uses its built-in
 WebKit.
 
-To build the CLI from source, use Go 1.27.3+ from the repository root:
+To build the CLI from source, use Go 1.27.4+ from the repository root:
 
 ```bash
 go build -o bin/steam-releaser ./cmd/steam-releaser

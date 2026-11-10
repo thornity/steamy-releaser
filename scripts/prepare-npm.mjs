@@ -37,7 +37,7 @@ const replacementLayout = [
     path: ["node_modules", "glob"],
     replaces: true,
     dependencies: {
-      minimatch: "^11.0.2",
+      minimatch: "^11.0.5",
       minipass: "^7.1.3",
       "path-scurry": "^3.0.0",
     },
@@ -47,7 +47,7 @@ const replacementLayout = [
     path: ["node_modules", "minimatch"],
     replaces: true,
     dependencies: {
-      "@isaacs/nonrecursive-glob-match": "^1.0.3",
+      "@isaacs/nonrecursive-glob-match": "^1.1.0",
       "brace-expansion": "^5.0.12",
     },
   },
