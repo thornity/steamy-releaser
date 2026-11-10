@@ -31,7 +31,7 @@
 Configurations that share a depot across different content directories require
 Steam Releaser 0.2.0 or later.
 
-[Full comparison](https://github.com/thornity/steam-release-tool/compare/v0.1.0...v0.2.0)
+[Full comparison](https://github.com/thornity/steamy-releaser/compare/v0.1.0...v0.2.0)
 
 ## 0.1.0 - 2026-11-05
 
