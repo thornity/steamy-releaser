@@ -1,8 +1,9 @@
 # Steam Releaser security and architecture audit
 
 > The CI descriptions below record the checks in place during the audit.
-> Routine verification now runs locally with `bash scripts/check-local.sh`;
-> hosted Actions run only for tagged releases. See the
+> Routine verification now runs locally with
+> `mise exec -- bash scripts/check-local.sh`; hosted Actions run only for tagged
+> releases. See the
 > [development guide](development.md) for the current process.
 
 ## November 4, 2026 supply-chain follow-up

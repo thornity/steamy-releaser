@@ -80,6 +80,7 @@ export GOCACHE="$RUNNER_TEMP/go-build-cache"
 
 printf '\n== Bootstrap and script tests ==\n'
 python3 scripts/test-prepare-runtimes.py
+python3 scripts/test-release-notes.py
 node scripts/prepare-npm.mjs
 STEAM_RELEASER_NPM_DIR=$(awk -F= '$1 == "STEAM_RELEASER_NPM_DIR" { sub(/^[^=]*=/, ""); print; exit }' "$work/github-env")
 npm_shims=$(head -n 1 "$work/github-path")

@@ -253,6 +253,199 @@ describe("Steam credential file", () => {
   });
 });
 
+describe("Steam mobile approval", () => {
+  let desktop: ReturnType<typeof mockDesktop>;
+  beforeEach(() => {
+    desktop = mockDesktop();
+  });
+
+  it("guides sign-in through fragmented SteamCMD output even without desktop notifications", async () => {
+    desktop.api.ConfigureNotifications.mockRejectedValueOnce(
+      new Error("Notifications unavailable"),
+    );
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Steam account cached_builder",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Continue with SteamCMD" }),
+    );
+    expect(
+      screen.getByText(
+        "If Steam asks for approval, check the Steam app on your phone.",
+      ),
+    ).toBeInTheDocument();
+    act(() => {
+      desktop.emit("release:event", {
+        level: "info",
+        target: "SteamCMD login",
+        message:
+          "This account is protected by a Steam Guard mobile authenticator.\nPlease confirm the log",
+      });
+      desktop.emit("release:event", {
+        level: "info",
+        target: "SteamCMD login",
+        message: "in in the Steam Mobile app on your phone.\n",
+      });
+    });
+    expect(
+      screen.getByText(
+        "Check the Steam app on your phone and approve the sign-in. Steam Releaser will continue automatically.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Steam Guard response"),
+    ).not.toBeInTheDocument();
+    expect(desktop.api.SubmitSteamInput).not.toHaveBeenCalled();
+    act(() => {
+      desktop.emit("release:event", {
+        level: "info",
+        target: "SteamCMD login",
+        message: "Waiting for confirmation...",
+      });
+      desktop.emit("release:event", {
+        level: "info",
+        target: "SteamCMD login",
+        message: "OK\n",
+      });
+    });
+    expect(screen.getByText("Waiting for SteamCMD…")).toBeInTheDocument();
+    act(() =>
+      desktop.emit("operation:finished", { action: "login", ok: true }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Steam sign-in" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(["upload", "ship"] as const)(
+    "opens an approval message during %s and dismisses it when Steam confirms",
+    async (action) => {
+      render(<App />);
+      const user = userEvent.setup();
+      await openExistingConfig();
+      await user.click(
+        screen.getByRole("button", { name: "Browse configuration" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Load configuration" }),
+      );
+      await screen.findByRole("heading", { name: "Demo Game / full" });
+      if (action === "upload") {
+        await user.click(
+          screen.getByRole("button", { name: "More release actions" }),
+        );
+        await user.click(screen.getByRole("menuitem", { name: "Upload" }));
+      }
+      await user.click(
+        screen.getByRole("button", {
+          name: action === "upload" ? "Upload" : "Build & Deploy",
+        }),
+      );
+      act(() =>
+        desktop.emit("release:event", {
+          kind: "steam-guard-prompt",
+          level: "info",
+          target: "SteamCMD upload",
+          message: "Steam Guard response required.",
+        }),
+      );
+      await user.type(
+        screen.getByLabelText("Steam Guard response"),
+        "unused-code",
+      );
+      act(() =>
+        desktop.emit("release:event", {
+          kind: "steam-mobile-approval",
+          level: "info",
+          target: "SteamCMD upload",
+          message: "Steam mobile approval required.",
+        }),
+      );
+      expect(
+        screen.getByRole("dialog", { name: "Steam sign-in" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Steam Guard response"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/Check the Steam app on your phone and approve/),
+      ).toBeInTheDocument();
+      expect(desktop.api.SubmitSteamInput).not.toHaveBeenCalled();
+      expect(desktop.api.NotifySteamInput).toHaveBeenCalledTimes(2);
+      act(() =>
+        desktop.emit("release:event", {
+          kind: "steam-mobile-approved",
+          level: "info",
+          target: "SteamCMD upload",
+          message: "Steam mobile approval received.",
+        }),
+      );
+      expect(
+        screen.queryByRole("dialog", { name: "Steam sign-in" }),
+      ).not.toBeInTheDocument();
+      act(() =>
+        desktop.emit("release:event", {
+          kind: "steam-guard-prompt",
+          level: "info",
+          target: "SteamCMD upload",
+          message: "Steam Guard response required.",
+        }),
+      );
+      expect(screen.getByLabelText("Steam Guard response")).toHaveValue("");
+      expect(desktop.api.SubmitSteamInput).not.toHaveBeenCalled();
+      act(() => desktop.emit("operation:finished", { action, ok: true }));
+    },
+  );
+
+  it("does not reopen a password prompt when a saved password lookup finishes after mobile approval starts", async () => {
+    desktop.api.GetCredentialFileSettings.mockResolvedValue({
+      enabled: true,
+      path: "/private/steam-credentials.json",
+      username: "cached_builder",
+      has_credentials: true,
+    });
+    let resolvePassword!: (submitted: boolean) => void;
+    desktop.api.SubmitSavedSteamPassword.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePassword = resolve;
+      }),
+    );
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Steam account cached_builder",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Continue with SteamCMD" }),
+    );
+    act(() => {
+      desktop.emit("release:event", {
+        kind: "steam-password-prompt",
+        level: "info",
+        target: "SteamCMD login",
+        message: "Steam password required.",
+      });
+      desktop.emit("release:event", {
+        kind: "steam-mobile-approval",
+        level: "info",
+        target: "SteamCMD login",
+        message: "Steam mobile approval required.",
+      });
+    });
+    await act(async () => resolvePassword(false));
+    expect(screen.queryByLabelText("Steam password")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Check the Steam app on your phone and approve/),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Remember Me", () => {
   let desktop: ReturnType<typeof mockDesktop>;
   beforeEach(() => {
@@ -310,13 +503,29 @@ describe("Remember Me", () => {
     await user.click(
       screen.getByRole("button", { name: "Steam account cached_builder" }),
     );
-    const checkbox = screen.getByRole("checkbox", { name: "Remember Me" });
-    expect(checkbox).not.toBeChecked();
-    if (remember) await user.click(checkbox);
+    expect(
+      screen.queryByRole("checkbox", { name: "Remember Me" }),
+    ).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Continue with SteamCMD" }),
     );
     prompt("Password: ", "SteamCMD login");
+    const password = screen.getByLabelText("Steam password");
+    const checkbox = screen.getByRole("checkbox", { name: "Remember Me" });
+    expect(
+      password.compareDocumentPosition(checkbox) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(checkbox).not.toBeChecked();
+    expect(
+      screen.queryByText(
+        "Complete any password or Steam Guard prompt from SteamCMD.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keep my password in memory until I close the app/),
+    ).not.toBeInTheDocument();
+    if (remember) await user.click(checkbox);
     await sendResponse(user, "private-password");
     if (complete) finish("login");
     return user;
@@ -326,6 +535,9 @@ describe("Remember Me", () => {
     render(<App />);
     const user = await enterLogin(true, false);
     prompt("Steam Guard code: ", "SteamCMD login");
+    expect(
+      screen.queryByRole("checkbox", { name: "Remember Me" }),
+    ).not.toBeInTheDocument();
     await sendResponse(user, "first-guard-code", "Steam Guard response");
     finish("login");
 
@@ -412,16 +624,15 @@ describe("Remember Me", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("forgets immediately when Remember Me is turned off", async () => {
+  it("forgets immediately when the remembered password is cleared", async () => {
     render(<App />);
     const user = await enterLogin();
     await user.click(
       screen.getByRole("button", { name: "Steam account cached_builder" }),
     );
-    const checkbox = screen.getByRole("checkbox", { name: "Remember Me" });
-    expect(checkbox).toBeChecked();
-    await user.click(checkbox);
-    await user.click(checkbox);
+    await user.click(
+      screen.getByRole("button", { name: "Forget remembered password" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Close Steam sign-in" }),
     );
@@ -429,6 +640,9 @@ describe("Remember Me", () => {
     desktop.api.SubmitSteamInput.mockClear();
     prompt();
     expect(screen.getByLabelText("Steam password")).toHaveValue("");
+    expect(
+      screen.getByRole("checkbox", { name: "Remember Me" }),
+    ).not.toBeChecked();
     expect(desktop.api.SubmitSteamInput).not.toHaveBeenCalled();
   });
 

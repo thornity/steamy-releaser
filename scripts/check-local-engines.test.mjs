@@ -43,7 +43,7 @@ test("frontend installation rejects unsupported Node and npm versions", (t) => {
   const npmPackage =
     'require(require("node:path").join(process.env.STEAM_RELEASER_NPM_DIR, "package.json"))';
   const cases = [
-    ...["v22.23.4", "v24.22.2", "v26.13.0"].map((version) => ({
+    ...["v22.23.5", "v24.22.3", "v26.13.1"].map((version) => ({
       name: `supported ${version}`,
       accepted: true,
       preload: `Object.defineProperty(process, "version", { value: ${JSON.stringify(version)} }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
@@ -57,12 +57,16 @@ test("frontend installation rejects unsupported Node and npm versions", (t) => {
       preload: `Object.defineProperty(process, "version", { value: "v27.0.0" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
     },
     {
+      name: "stale Node 22 patch",
+      preload: `Object.defineProperty(process, "version", { value: "v22.23.4" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
+    },
+    {
       name: "stale Node 24 patch",
-      preload: `Object.defineProperty(process, "version", { value: "v24.22.1" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
+      preload: `Object.defineProperty(process, "version", { value: "v24.22.2" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
     },
     {
       name: "stale Node 26 patch",
-      preload: `Object.defineProperty(process, "version", { value: "v26.12.1" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
+      preload: `Object.defineProperty(process, "version", { value: "v26.13.0" }); ${npmPackage}.version = ${JSON.stringify(npmVersion)};\n`,
     },
     {
       name: "old npm",

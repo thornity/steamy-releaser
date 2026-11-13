@@ -4,7 +4,7 @@ app or CLI.
 
 ![Steam Releaser GUI showing release targets and deployment controls](docs/readme_gui_picture.png)
 
-## Using It: Getting Started
+## Start Here To Use It
 
 - Download the [latest release](https://github.com/thornity/steam-release-tool/releases)
 - Launch application
@@ -12,15 +12,10 @@ app or CLI.
 - Use AI to generate yaml from [examples](examples/)
 - AI provide configuration for [Steamworks app installation](https://partner.steamgames.com/doc/sdk/uploading?l=turkish#Initial_Setup_New_App). Example found [here](docs/general_installation_launch_example.png).
 
-## Development Launch the GUI
+## Contributing
 
-For prerequisites, or Windows, see the [desktop guide](docs/desktop.md).
-
-On Linux or macOS, open the GUI with live reload via:
-
-```sh
-./gui
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, launching the GUI,
+and local checks.
 
 ## AI Disclaimer
 This Project heavily utilizes AI for development.

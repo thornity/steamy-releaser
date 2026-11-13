@@ -151,13 +151,15 @@ promotion in Steamworks as well; a completed build alone does not prove it.
 
 Uploads try SteamCMD's saved login
 for the selected account first. If SteamCMD asks for a password or Steam Guard
-response, enter it in the app. Select **Remember Me** in the sign-in modal to keep
-a successfully used password in memory and answer later password prompts while
-the app remains open. The password is cleared when you turn the option off,
-change accounts, clear Steam credentials, or authentication fails. This option
+response, enter it in the app. Select **Remember Me** below the password field to
+keep a successfully used password in memory and answer later password prompts
+while the app remains open. Select **Forget remembered password** in the sign-in
+modal to clear it. The password is also cleared when you change accounts, clear
+Steam credentials, or authentication fails. This option
 does not save the password to disk, and Steam Guard responses are never remembered. You can use
-**Sign in to Steam** to check the saved login before uploading. Mobile approvals
-are completed in Steam. The CLI also supports `auth login`.
+**Sign in to Steam** to check the saved login before uploading. If Steam asks for
+mobile approval, open the Steam app on your phone and approve the sign-in; the
+desktop app continues automatically. The CLI also supports `auth login`.
 
 **Sign in to Steam** works before any project is loaded.
 If SteamCMD is installed, the sign-in modal asks before reading SteamCMD's saved account names from its `config/config.vdf`.

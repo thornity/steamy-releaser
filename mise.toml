@@ -2,4 +2,4 @@
 # npm is listed first so it shadows the npm bundled with Node.
 [tools]
 "npm:npm" = "12.2.2"
-node = "26.13.0"
+node = "26.13.1"

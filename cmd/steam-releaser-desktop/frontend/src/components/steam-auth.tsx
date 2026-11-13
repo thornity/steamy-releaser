@@ -13,7 +13,6 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
   const [account, setAccount] = useState(
     state.username || (state.steamcmdAccounts[0] ?? ""),
   );
-  const [response, setResponse] = useState("");
   const [sending, setSending] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [loginCountAtOpen, setLoginCountAtOpen] = useState(
@@ -33,11 +32,8 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
     if (!next && (loginRunning || state.steamPrompt)) return;
     if (next) {
       setAccount(state.username || (state.steamcmdAccounts[0] ?? ""));
-      setResponse("");
       setAttempted(false);
       setLoginCountAtOpen(state.steamLoginCount);
-    } else {
-      setResponse("");
     }
     setManualOpen(next);
   }
@@ -54,18 +50,6 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
     setAccount(name);
     setAttempted(true);
     await state.signIn(name);
-  }
-
-  async function sendResponse(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!response || sending) return;
-    const answer = response;
-    setSending(true);
-    try {
-      if (await state.submitSteamInput(answer)) setResponse("");
-    } finally {
-      setSending(false);
-    }
   }
 
   return (
@@ -99,17 +83,26 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 [--wails-draggable:no-drag]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-2xl [--wails-draggable:no-drag] focus:outline-none">
+        <Dialog.Content
+          className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-5 rounded-xl border bg-card p-6 text-card-foreground shadow-2xl [--wails-draggable:no-drag] focus:outline-none"
+          aria-describedby={
+            steamOperation ? undefined : "steam-auth-description"
+          }
+        >
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <Dialog.Title className="text-lg font-semibold">
                 Steam sign-in
               </Dialog.Title>
-              <Dialog.Description className="text-sm text-muted-foreground">
-                {steamOperation
-                  ? "Complete any password or Steam Guard prompt from SteamCMD."
-                  : "SteamCMD will try its saved login first and ask for a password only if needed."}
-              </Dialog.Description>
+              {!steamOperation && (
+                <Dialog.Description
+                  id="steam-auth-description"
+                  className="text-sm text-muted-foreground"
+                >
+                  SteamCMD will try its saved login first and ask for a password
+                  only if needed.
+                </Dialog.Description>
+              )}
             </div>
             <Button
               type="button"
@@ -122,33 +115,11 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
               <X aria-hidden="true" />
             </Button>
           </div>
-          {state.credentialFile.enabled ? (
+          {state.credentialFile.enabled && (
             <p className="text-xs text-muted-foreground">
               The credential file in Client settings saves your password after a
               successful sign-in. Steam Guard responses are never saved.
             </p>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="steam-remember-me"
-                  checked={state.rememberSteamLogin}
-                  onCheckedChange={(checked) =>
-                    state.setRememberSteamLogin(checked === true)
-                  }
-                  disabled={sending || state.operation?.phase === "cancelling"}
-                  aria-describedby="steam-remember-me-description"
-                />
-                <Label htmlFor="steam-remember-me">Remember Me</Label>
-              </div>
-              <p
-                id="steam-remember-me-description"
-                className="text-xs text-muted-foreground"
-              >
-                Keep my password in memory until I close the app. Steam Guard
-                may still ask for approval.
-              </p>
-            </div>
           )}
           {!steamOperation && state.steamcmdPath && !state.steamcmdAccess && (
             <div className="space-y-3 rounded-lg border p-3">
@@ -219,6 +190,17 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
               <Button type="submit" className="w-full" disabled={state.locked}>
                 Continue with SteamCMD
               </Button>
+              {state.rememberSteamLogin && !state.credentialFile.enabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={state.locked}
+                  onClick={() => state.setRememberSteamLogin(false)}
+                >
+                  Forget remembered password
+                </Button>
+              )}
             </form>
           )}
           {steamOperation && (
@@ -228,74 +210,31 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
                   className="size-4 motion-safe:animate-spin"
                   aria-hidden="true"
                 />
-                {state.steamPrompt
-                  ? "SteamCMD needs a response."
-                  : "Waiting for SteamCMD…"}
+                {state.steamPrompt === "mobile"
+                  ? "Check the Steam app on your phone and approve the sign-in. Steam Releaser will continue automatically."
+                  : state.steamPrompt
+                    ? "SteamCMD needs a response."
+                    : "Waiting for SteamCMD…"}
               </output>
-              {state.steamPrompt && (
-                <form
-                  className="space-y-3"
-                  onSubmit={(event) => void sendResponse(event)}
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="steam-response">
-                      {state.steamPrompt === "password"
-                        ? "Steam password"
-                        : "Steam Guard response"}
-                    </Label>
-                    <Input
-                      id="steam-response"
-                      type="password"
-                      autoComplete={
-                        state.steamPrompt === "password"
-                          ? "current-password"
-                          : "off"
-                      }
-                      value={response}
-                      onChange={(event) => setResponse(event.target.value)}
-                      disabled={
-                        state.operation?.phase === "cancelling" || sending
-                      }
-                      maxLength={1024}
-                    />
-                  </div>
-                  {state.steamPrompt === "response" && (
-                    <p className="text-xs text-muted-foreground">
-                      For mobile approval, approve the request in Steam and wait
-                      here.
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={
-                      !response ||
-                      sending ||
-                      state.operation?.phase === "cancelling"
-                    }
-                  >
-                    Send response
-                  </Button>
-                </form>
+              {!state.steamPrompt && (
+                <p className="text-xs text-muted-foreground">
+                  If Steam asks for approval, check the Steam app on your phone.
+                </p>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={state.operation?.phase === "cancelling"}
-                onClick={() => {
-                  setResponse("");
-                  void state.cancelOperation();
-                }}
-              >
-                {state.operation?.phase === "cancelling"
-                  ? "Cancelling…"
-                  : loginRunning
-                    ? "Cancel sign-in"
-                    : state.operation?.action === "ship"
-                      ? "Cancel release"
-                      : "Cancel upload"}
-              </Button>
+              {state.steamPrompt && state.steamPrompt !== "mobile" ? (
+                <SteamResponseForm
+                  key={state.steamPrompt}
+                  state={state}
+                  prompt={state.steamPrompt}
+                  sending={sending}
+                  setSending={setSending}
+                />
+              ) : (
+                <SteamCancelButton
+                  state={state}
+                  cancel={() => void state.cancelOperation()}
+                />
+              )}
             </div>
           )}
           {!state.busy && state.username && (
@@ -316,5 +255,114 @@ export function SteamAuth({ console: state }: { console: ReleaseConsole }) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+function SteamResponseForm({
+  state,
+  prompt,
+  sending,
+  setSending,
+}: {
+  state: ReleaseConsole;
+  prompt: "password" | "response";
+  sending: boolean;
+  setSending: (sending: boolean) => void;
+}) {
+  const [response, setResponse] = useState("");
+
+  async function sendResponse(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!response || sending) return;
+    setSending(true);
+    try {
+      if (await state.submitSteamInput(response)) setResponse("");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => void sendResponse(event)}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="steam-response">
+            {prompt === "password" ? "Steam password" : "Steam Guard response"}
+          </Label>
+          <Input
+            id="steam-response"
+            type="password"
+            autoComplete={prompt === "password" ? "current-password" : "off"}
+            value={response}
+            onChange={(event) => setResponse(event.target.value)}
+            disabled={sending || state.operation?.phase === "cancelling"}
+            maxLength={1024}
+          />
+        </div>
+        {prompt === "password" && !state.credentialFile.enabled && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="steam-remember-me"
+              checked={state.rememberSteamLogin}
+              onCheckedChange={(checked) =>
+                state.setRememberSteamLogin(checked === true)
+              }
+              disabled={sending || state.operation?.phase === "cancelling"}
+            />
+            <Label htmlFor="steam-remember-me">Remember Me</Label>
+          </div>
+        )}
+        {prompt === "response" && (
+          <p className="text-xs text-muted-foreground">
+            If Steam asks for approval, check the Steam app on your phone.
+          </p>
+        )}
+        <Button
+          type="submit"
+          size="sm"
+          disabled={
+            !response || sending || state.operation?.phase === "cancelling"
+          }
+        >
+          Send response
+        </Button>
+      </form>
+      <SteamCancelButton
+        state={state}
+        cancel={() => {
+          setResponse("");
+          void state.cancelOperation();
+        }}
+      />
+    </>
+  );
+}
+
+function SteamCancelButton({
+  state,
+  cancel,
+}: {
+  state: ReleaseConsole;
+  cancel: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={state.operation?.phase === "cancelling"}
+      onClick={cancel}
+    >
+      {state.operation?.phase === "cancelling"
+        ? "Cancelling…"
+        : state.operation?.action === "login"
+          ? "Cancel sign-in"
+          : state.operation?.action === "ship"
+            ? "Cancel release"
+            : "Cancel upload"}
+    </Button>
   );
 }

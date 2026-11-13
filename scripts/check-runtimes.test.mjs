@@ -8,8 +8,8 @@ import {
 } from "./check-runtimes.mjs";
 
 const nodeReleases = [
-  { version: "v22.23.4", lts: "Jod" },
-  { version: "v24.22.2", lts: "Krypton" },
+  { version: "v22.23.5", lts: "Jod" },
+  { version: "v24.22.3", lts: "Krypton" },
   { version: "v26.1.0", lts: "Example" },
   { version: "v26.2.0", lts: "Example" },
   { version: "v26.3.0-rc.1", lts: false },
@@ -131,7 +131,11 @@ test("checks every permitted frontend Node major and minimum against current LTS
       schedule,
       date,
     );
-  assert.doesNotThrow(() => check("^22.23.4 || ^24.22.2 || ^26.2.0"));
+  assert.doesNotThrow(() => check("^22.23.5 || ^24.22.3 || ^26.2.0"));
+  assert.throws(
+    () => check("^22.23.4 || ^24.22.3 || ^26.2.0"),
+    /Node 22 minimum 22\.23\.4 is not its latest LTS patch \(22\.23\.5\)/,
+  );
   assert.throws(() => check(">=26.2.0"), /bounded/);
   assert.throws(() => check("^26.1.0"), /latest/);
   assert.throws(() => check("^26.2.0", "^26.1.0"), /lockfile/);
@@ -144,7 +148,7 @@ test("checks every permitted frontend Node major and minimum against current LTS
   assert.throws(
     () =>
       check(
-        "^22.23.4 || ^24.22.2 || ^26.2.0",
+        "^22.23.5 || ^24.22.3 || ^26.2.0",
         undefined,
         nodeSchedule,
         "2027-04-30",

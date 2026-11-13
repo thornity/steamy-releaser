@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.1 - 2026-11-13
+
+### Changed
+
+- Updated Go and frontend dependencies and the verified npm toolchain
+  replacements, retaining Node 26 LTS for development and release builds.
+- Moved development setup into the contributing guide and updated local check
+  instructions to use mise.
+- Moved **Remember Me** beside the Steam password prompt and added an option to
+  forget a remembered password from the sign-in dialog.
+
+### Fixed
+
+- Show clear instructions when SteamCMD requests mobile approval during sign-in
+  or upload, and continue automatically once approval is received.
+
+[Full comparison](https://github.com/thornity/steamy-releaser/compare/v0.2.0...v0.2.1)
+
 ## 0.2.0 - 2026-11-10
 
 ### Added

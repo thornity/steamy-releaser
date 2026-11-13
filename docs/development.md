@@ -1,14 +1,15 @@
 # Development guide
 
-Install the exact Go version in `go.mod`, the Node version in `.nvmrc`, Python 3,
+Install [mise](https://mise.jdx.dev), the exact Go version in `go.mod`, Python 3,
 and the native desktop build dependencies in the
 [desktop guide](desktop.md#build-from-source). On Linux, the tray test also needs
 `dbus-run-session`, GTK 3, and WebKitGTK 4.1 development libraries. Native
 Windows runs require Git Bash, `cygpath`, and Python 3 on `PATH`. From the
-repository root, run the full local suite:
+repository root, run `mise trust` and `mise install` to prepare the pinned tools,
+then run the full local suite:
 
 ```bash
-bash scripts/check-local.sh
+mise exec -- bash scripts/check-local.sh
 ```
 
 The check disables Go's automatic toolchain switching, so the `go` executable
@@ -19,7 +20,7 @@ command downloads the toolchain if it is not already cached:
 ```bash
 steamy_go_version=$(awk '$1 == "go" { print $2; exit }' go.mod)
 GOTOOLCHAIN="go$steamy_go_version" go version
-PATH="$(GOTOOLCHAIN="go$steamy_go_version" go env GOROOT)/bin:$PATH" bash scripts/check-local.sh
+PATH="$(GOTOOLCHAIN="go$steamy_go_version" go env GOROOT)/bin:$PATH" mise exec -- bash scripts/check-local.sh
 ```
 
 The script creates a temporary npm installation and build cache; it does not
@@ -153,7 +154,9 @@ latest patches for every permitted frontend Node major, supported Go patches,
 and the latest npm release whenever the suite is run.
 The frontend's manifest and lockfile must use matching bounded Node major
 ranges. No routine hosted test matrix is run; release tags package Linux,
-Windows, and macOS. The Wails CLI's
+Windows, and macOS. Wails remains on the latest v2 release; moving to v3
+requires migrating the desktop app and its build process, as described in the
+[Wails migration guide](https://v3.wails.io/migration/v2-to-v3/). The Wails CLI's
 `github.com/leaanthony/clir` dependency is at
 1.4.0: versions 1.5.0 through 1.7.0 break Wails 2.17.1's default build options.
 Systray remains at 1.12.1 because its 1.12.2 Linux menu refresh has a data race

@@ -633,6 +633,12 @@
       "ownerId": "94954945"
     },
     {
+      "name": "@rolldown/binding-wasm32-wasi",
+      "repository": "https://github.com/rolldown/rolldown",
+      "repositoryId": "693187866",
+      "ownerId": "94954945"
+    },
+    {
       "name": "@rolldown/binding-win32-arm64-msvc",
       "repository": "https://github.com/rolldown/rolldown",
       "repositoryId": "693187866",
@@ -817,6 +823,12 @@
       "repository": "https://github.com/fb55/entities",
       "repositoryId": "3172629",
       "ownerId": "188768"
+    },
+    {
+      "name": "graceful-fs",
+      "repository": "https://github.com/isaacs/node-graceful-fs",
+      "repositoryId": "2077020",
+      "ownerId": "9287"
     },
     {
       "name": "html-encoding-sniffer",

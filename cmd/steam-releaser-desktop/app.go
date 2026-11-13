@@ -319,7 +319,7 @@ func (a *DesktopApp) notify(title, body string) {
 }
 
 func (a *DesktopApp) NotifySteamInput() {
-	a.notify("Steam needs your attention", "Return to Steam Releaser to enter your password or Steam Guard response, or approve the sign-in in Steam.")
+	a.notify("Steam needs your attention", "Return to Steam Releaser to enter your password or Steam Guard code, or check the Steam app on your phone for a sign-in approval.")
 }
 
 func (a *DesktopApp) GetReleaseHistory(configPath, projectRoot string) ([]history.Record, error) {
@@ -857,7 +857,7 @@ func (a *DesktopApp) run(ctx context.Context, request OperationRequest, steamInp
 	var logs strings.Builder
 	logsTruncated := false
 	var redactor history.StreamRedactor
-	steamOutputTail := ""
+	var steamPrompts steamPromptDetector
 	reporter := release.ReporterFunc(func(event release.Event) {
 		recordMu.Lock()
 		if record != nil {
@@ -886,14 +886,8 @@ func (a *DesktopApp) run(ctx context.Context, request OperationRequest, steamInp
 		// Identify prompts before redaction so even a password resembling prompt
 		// text cannot prevent authentication. The frontend also handles old events.
 		if event.Target == "SteamCMD login" || event.Target == "SteamCMD upload" {
-			steamOutputTail += event.Message
-			if len(steamOutputTail) > 160 {
-				steamOutputTail = steamOutputTail[len(steamOutputTail)-160:]
-			}
-			if steamGuardPromptPattern.MatchString(steamOutputTail) {
-				event.Kind, steamOutputTail = "steam-guard-prompt", ""
-			} else if steamPasswordPromptPattern.MatchString(steamOutputTail) {
-				event.Kind, steamOutputTail = "steam-password-prompt", ""
+			if kind := steamPrompts.feed(event.Message); kind != "" {
+				event.Kind = kind
 			}
 		}
 		a.mu.Lock()
@@ -1117,8 +1111,39 @@ func (a *DesktopApp) run(ctx context.Context, request OperationRequest, steamInp
 	a.finish(finished)
 }
 
-var steamGuardPromptPattern = regexp.MustCompile(`(?i)steam guard|authenticator|two.factor|guard code|verification code`)
-var steamPasswordPromptPattern = regexp.MustCompile(`(?i)password\s*:|enter (?:your )?password`)
+var steamPromptPatterns = []struct {
+	kind    string
+	pattern *regexp.Regexp
+}{
+	{"steam-password-prompt", regexp.MustCompile(`(?i)password\s*:|enter (?:your )?password`)},
+	// SteamCMD also mentions its mobile authenticator before asking for an
+	// approval. Only treat it as a text prompt when it asks for a code.
+	{"steam-guard-prompt", regexp.MustCompile(`(?i)(?:steam guard|authenticator|two.factor)(?:[^\r\n]{0,60}(?:code|response)|[ \t]*:)|(?:guard|verification)[ \t]+(?:code|response)|(?:code|response)[^\r\n]{0,60}(?:steam guard|authenticator|two.factor)`)},
+	{"steam-mobile-approval", regexp.MustCompile(`(?i)\b(?:approve|confirm|accept)\b[^\r\n]{0,100}(?:steam|mobile|phone)|waiting for[^\r\n]{0,40}mobile[^\r\n]{0,30}(?:approval|confirmation)`)},
+	{"steam-mobile-approved", regexp.MustCompile(`(?i)waiting for confirmation[. \t]*OK\b`)},
+}
+
+// SteamCMD can split a prompt between reads, or combine several in one read.
+// Keep the unconsumed suffix and report the most recent complete prompt.
+type steamPromptDetector struct{ tail string }
+
+func (d *steamPromptDetector) feed(fragment string) string {
+	output := d.tail + fragment
+	kind, end := "", 0
+	for _, candidate := range steamPromptPatterns {
+		for _, match := range candidate.pattern.FindAllStringIndex(output, -1) {
+			if match[1] > end {
+				kind, end = candidate.kind, match[1]
+			}
+		}
+	}
+	output = output[end:]
+	if len(output) > 160 {
+		output = output[len(output)-160:]
+	}
+	d.tail = output
+	return kind
+}
 
 func (a *DesktopApp) finish(result OperationResult) {
 	a.mu.Lock()

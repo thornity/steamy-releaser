@@ -43,6 +43,41 @@ type Operation = {
 };
 
 type SteamAuthStatus = "cached" | "verified" | "required";
+type SteamPromptKind =
+  | "steam-password-prompt"
+  | "steam-guard-prompt"
+  | "steam-mobile-approval"
+  | "steam-mobile-approved";
+
+// Older backends can send the raw output instead of a classified event.
+const steamPromptPatterns: [SteamPromptKind, RegExp][] = [
+  ["steam-password-prompt", /password\s*:|enter (?:your )?password/gi],
+  [
+    "steam-guard-prompt",
+    /(?:steam guard|authenticator|two.factor)(?:[^\r\n]{0,60}(?:code|response)|[ \t]*:)|(?:guard|verification)[ \t]+(?:code|response)|(?:code|response)[^\r\n]{0,60}(?:steam guard|authenticator|two.factor)/gi,
+  ],
+  [
+    "steam-mobile-approval",
+    /\b(?:approve|confirm|accept)\b[^\r\n]{0,100}(?:steam|mobile|phone)|waiting for[^\r\n]{0,40}mobile[^\r\n]{0,30}(?:approval|confirmation)/gi,
+  ],
+  ["steam-mobile-approved", /waiting for confirmation[. \t]*OK\b/gi],
+];
+
+function steamPromptFromOutput(output: string) {
+  let kind: SteamPromptKind | undefined;
+  let end = 0;
+  for (const [candidate, pattern] of steamPromptPatterns) {
+    pattern.lastIndex = 0;
+    for (const match of output.matchAll(pattern)) {
+      const matchEnd = match.index + match[0].length;
+      if (matchEnd > end) {
+        kind = candidate;
+        end = matchEnd;
+      }
+    }
+  }
+  return { kind, tail: output.slice(end).slice(-160) };
+}
 
 export function useReleaseConsole() {
   const [initialPath] = useState(readLastConfig);
@@ -81,7 +116,7 @@ export function useReleaseConsole() {
   const [steamcmdPath, setSteamcmdPath] = useState("");
   const [steamcmdAccounts, setSteamcmdAccounts] = useState<string[]>([]);
   const [steamPrompt, setSteamPrompt] = useState<
-    "password" | "response" | null
+    "password" | "response" | "mobile" | null
   >(null);
   const [preview, setPreview] = useState(false);
   const [setLive, setSetLive] = useState("");
@@ -364,30 +399,38 @@ export function useReleaseConsole() {
           (event.target === "SteamCMD login" ||
             event.target === "SteamCMD upload")
         ) {
-          steamOutputTailRef.current = (
-            steamOutputTailRef.current + event.message
-          ).slice(-160);
-          const output = steamOutputTailRef.current;
+          const output = steamOutputTailRef.current + event.message;
           if (
             /invalid password|login failure|credentials expired/i.test(output)
           )
             steamLoginSessionRef.current.forget();
-          const guardPrompt =
-            event.kind === "steam-guard-prompt" ||
-            /steam guard|authenticator|two.factor|guard code|verification code/i.test(
-              output,
+          const parsed = steamPromptFromOutput(output);
+          const classified = steamPromptPatterns.some(
+            ([kind]) => kind === event.kind,
+          )
+            ? (event.kind as SteamPromptKind)
+            : undefined;
+          const kind = classified ?? parsed.kind;
+          steamOutputTailRef.current = classified ? "" : parsed.tail;
+          if (kind === "steam-mobile-approved") {
+            ++steamPromptSequenceRef.current;
+            setSteamPrompt((current) =>
+              current === "mobile" ? null : current,
             );
-          const passwordPrompt =
-            event.kind === "steam-password-prompt" ||
-            /password\s*:|enter (?:your )?password/i.test(output);
-          const mobileApproval =
-            /(?:approve|confirm|accept).*(?:steam|mobile|sign.?in|login)|waiting for.*(?:approval|confirmation)/i.test(
-              output,
-            );
-          if (mobileApproval && !guardPrompt && !passwordPrompt)
+            steamNotificationRef.current = null;
+            return;
+          }
+          if (kind === "steam-mobile-approval") {
+            ++steamPromptSequenceRef.current;
+            setSteamInputReady(false);
+            setSteamPrompt("mobile");
+            setSteamAuthStatus("required");
             notifySteamPrompt("mobile");
+            return;
+          }
+          const guardPrompt = kind === "steam-guard-prompt";
+          const passwordPrompt = kind === "steam-password-prompt";
           if (guardPrompt || passwordPrompt) {
-            steamOutputTailRef.current = "";
             const promptSequence = ++steamPromptSequenceRef.current;
             const rememberedPassword = guardPrompt
               ? null

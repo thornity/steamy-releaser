@@ -5,7 +5,8 @@ These instructions apply throughout this repository.
 ## Keep routine checks local
 
 - Run tests, dependency checks, and release rehearsals locally. Use
-  `bash scripts/check-local.sh` for the full local verification suite.
+  `mise exec -- bash scripts/check-local.sh` for the full local verification
+  suite.
 - GitHub-hosted workflows are reserved for building and publishing a release
   after a `v*` tag is pushed. Do not add push, pull-request, scheduled,
   manually dispatched, reusable, or one-off hosted test workflows.

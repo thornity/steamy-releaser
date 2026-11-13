@@ -11,15 +11,35 @@ information removed. Never attach Steam passwords, Steam Guard codes, login
 tokens, or an entire SteamCMD installation. Use the [security policy](SECURITY.md)
 for vulnerabilities.
 
-## Local checks
+## Development setup
 
-Install the Go version in `go.mod`, the Node version in `.nvmrc`, Python 3, and
+Install [mise](https://mise.jdx.dev), the Go version in `go.mod`, Python 3, and
 the native desktop build dependencies described in the
 [desktop guide](docs/desktop.md#build-from-source). From the repository root,
-run the full local suite before submitting changes or tagging a release:
+prepare the pinned tools:
 
 ```sh
-bash scripts/check-local.sh
+mise trust
+mise install
+```
+
+### Launch the GUI
+
+On Linux or macOS, launch the GUI with live reload from the repository root:
+
+```sh
+./gui
+```
+
+For Windows and other prerequisites, see the [desktop guide](docs/desktop.md).
+
+## Local checks
+
+From the repository root, run the full local suite before submitting changes or
+tagging a release:
+
+```sh
+mise exec -- bash scripts/check-local.sh
 ```
 
 The script runs Go, frontend, desktop, workflow, and dependency checks on the

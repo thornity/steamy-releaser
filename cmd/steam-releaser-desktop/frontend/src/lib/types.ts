@@ -174,6 +174,8 @@ export interface ReleaseEvent {
     | "build-reused"
     | "steam-password-prompt"
     | "steam-guard-prompt"
+    | "steam-mobile-approval"
+    | "steam-mobile-approved"
     | "build-ready";
 }
 

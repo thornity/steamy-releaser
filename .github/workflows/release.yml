@@ -331,9 +331,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          python3 scripts/release-notes.py "$GITHUB_REF_NAME" > "$RUNNER_TEMP/RELEASE_NOTES.md"
           files=()
           for platform in linux-amd64 windows-amd64 macos-arm64; do
             archive="dist/$platform/steam-releaser-$platform.tar.gz"
             files+=("$archive" "$archive.sha256")
           done
-          gh release create "${GITHUB_REF_NAME}" "${files[@]}" --verify-tag --generate-notes --repo "${GITHUB_REPOSITORY}"
+          gh release create "${GITHUB_REF_NAME}" "${files[@]}" --verify-tag --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md" --repo "${GITHUB_REPOSITORY}"

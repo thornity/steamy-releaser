@@ -89,6 +89,101 @@ func (r desktopTestRunner) Run(_ context.Context, plan release.CommandPlan, _ bo
 	return r.run(plan)
 }
 
+func TestSteamPromptDetectorHandlesMobileApprovalAcrossReads(t *testing.T) {
+	prompt := "This account is protected by a Steam Guard mobile authenticator.\nPlease confirm the login in the Steam Mobile app on your phone.\n"
+	completed := "Waiting for confirmation...OK\n"
+	for split := 0; split <= len(prompt+completed); split++ {
+		var detector steamPromptDetector
+		output := prompt + completed
+		first := detector.feed(output[:split])
+		last := detector.feed(output[split:])
+		if last == "" {
+			last = first
+		}
+		if last != "steam-mobile-approved" {
+			t.Fatalf("split at %d: first=%q last=%q", split, first, last)
+		}
+	}
+
+	var detector steamPromptDetector
+	if got := detector.feed(prompt); got != "steam-mobile-approval" {
+		t.Fatalf("mobile approval prompt classified as %q", got)
+	}
+	if got := detector.feed("Waiting for confirmation..."); got != "" {
+		t.Fatalf("incomplete confirmation classified as %q", got)
+	}
+	if got := detector.feed("OK\n"); got != "steam-mobile-approved" {
+		t.Fatalf("mobile approval completion classified as %q", got)
+	}
+	if got := detector.feed("Steam Guard code: "); got != "steam-guard-prompt" {
+		t.Fatalf("Guard code prompt classified as %q", got)
+	}
+	if got := detector.feed("Password: "); got != "steam-password-prompt" {
+		t.Fatalf("password prompt classified as %q", got)
+	}
+	var intro steamPromptDetector
+	if got := intro.feed("This account is protected by a Steam Guard mobile authenticator.\n"); got != "" {
+		t.Fatalf("mobile authenticator description classified as %q", got)
+	}
+}
+
+func TestDesktopEmitsMobileApprovalEventsBeforeRedaction(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("STEAM_RELEASER_CONFIG_DIR", filepath.Join(root, "settings"))
+	tool := filepath.Join(root, "steamcmd")
+	if err := os.WriteFile(tool, []byte("fake"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("STEAMCMD_BIN", tool)
+	path := filepath.Join(root, "release.yaml")
+	if _, err := config.Initialize(config.InitOptions{Path: path, Engine: "custom", AppID: 100, Targets: []config.InitTarget{{Name: "linux", DepotID: 101, Output: "build/game", BuildSetting: tool}}}); err != nil {
+		t.Fatal(err)
+	}
+	app := NewDesktopApp()
+	app.secrets = []string{"Steam Mobile"}
+	var kinds []string
+	var visible strings.Builder
+	var finished OperationResult
+	app.emit = func(name string, values ...any) {
+		if name == "release:event" {
+			event := values[0].(release.Event)
+			visible.WriteString(event.Message)
+			if event.Kind != "" {
+				kinds = append(kinds, event.Kind)
+			}
+		} else if name == "operation:finished" {
+			finished = values[0].(OperationResult)
+		}
+	}
+	app.loadService = func(path, projectRoot string, reporter release.Reporter) (*service.Service, error) {
+		loaded, err := service.LoadWithProjectRoot(path, projectRoot, reporter)
+		if err != nil {
+			return nil, err
+		}
+		loaded.Runner = desktopInputTestRunner{run: func(io.Reader) (release.RunResult, error) {
+			for _, fragment := range []string{
+				"This account is protected by a Steam Guard mobile authenticator.\nPlease confirm the log",
+				"in in the Steam Mobile app on your phone.\nWaiting for confirmation...",
+				"OK\npost-approval diagnostics retained\n",
+			} {
+				reporter.Report(release.Event{Target: "SteamCMD login", Level: release.LevelInfo, Message: fragment})
+			}
+			return release.RunResult{Output: "Logged in OK"}, nil
+		}}
+		return loaded, nil
+	}
+	app.run(context.Background(), OperationRequest{Action: "login", ConfigPath: path, Username: "builder"}, strings.NewReader(""))
+	if !finished.OK || strings.Join(kinds, ",") != "steam-mobile-approval,steam-mobile-approved" {
+		t.Fatalf("login result=%#v prompt events=%v", finished, kinds)
+	}
+	if strings.Contains(visible.String(), "Steam Mobile") {
+		t.Fatal("a secret resembling the approval message was exposed")
+	}
+	if !strings.Contains(visible.String(), "post-approval diagnostics retained") {
+		t.Fatal("approval event discarded adjacent SteamCMD output")
+	}
+}
+
 func TestDesktopRecordsFailureThenRetriesUploadWithoutRebuilding(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("STEAM_RELEASER_CONFIG_DIR", filepath.Join(root, "settings"))
