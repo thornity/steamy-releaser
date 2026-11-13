@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.2 - 2026-11-13
+
+### Changed
+
+- Documented a workaround for Unity 6000.3.1f1 projects with custom default
+  cursors that crash at startup on Linux when using `-nographics`.
+
+### Fixed
+
+- Include the current Unity build log's location in the error when a build
+  fails and the log was preserved, making failures easier to diagnose.
+
+[Full comparison](https://github.com/thornity/steam-release-tool/compare/v0.2.1...v0.2.2)
+
 ## 0.2.1 - 2026-11-13
 
 ### Changed

@@ -126,7 +126,9 @@ checks that each configured profile asset exists in the project. Unity builds
 use `-nographics` by default so they can run without a display. If your build
 needs a graphics device, set `build.no_graphics: false` for that target and
 provide a display on the build machine. Unity cannot bake global illumination
-with `-nographics`.
+with `-nographics`. On Linux, Unity 6000.3.1f1 can also crash during startup
+with `-nographics` when the project has a custom default cursor; use
+`build.no_graphics: false` on affected targets to keep the cursor.
 
 Each engine still needs its export templates/modules and any platform SDKs.
 Use a `.zip` output for Godot macOS exports from Windows to retain executable

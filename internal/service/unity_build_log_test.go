@@ -169,6 +169,54 @@ func TestUnityRequiresCurrentSuccessfulBuildLogForUnchangedOutput(t *testing.T) 
 	}
 }
 
+func TestUnityFailedBuildReportsOnlyCurrentLog(t *testing.T) {
+	for _, writeCurrentLog := range []bool{true, false} {
+		t.Run(fmt.Sprintf("current_log_%t", writeCurrentLog), func(t *testing.T) {
+			root := t.TempDir()
+			createUnityProjectMarkers(t, root)
+			logPath := filepath.Join(root, ".steam-releaser", "logs", "release", "target.log")
+			if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(logPath, []byte("previous run"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			document := testDocument(root, config.Engine{Type: "unity"}, config.Target{
+				DepotID: 101, Output: "build/Game", Content: "build", Build: config.Build{Target: "StandaloneLinux64"},
+			})
+			runFailure := errors.New("Unity crashed")
+			runner := &fakeRunner{run: func(_ context.Context, command release.CommandPlan) (release.RunResult, error) {
+				if writeCurrentLog {
+					index := slices.Index(command.Args, "-logFile")
+					if index < 0 || index+1 >= len(command.Args) {
+						return release.RunResult{}, errors.New("missing Unity log argument")
+					}
+					if err := os.WriteFile(command.Args[index+1], []byte("current run"), 0o600); err != nil {
+						return release.RunResult{}, err
+					}
+				}
+				return release.RunResult{}, runFailure
+			}}
+			svc := &Service{Document: document, Runner: runner, Reporter: release.NopReporter{}}
+			err := svc.Build(context.Background(), "release", RunOptions{})
+			if !errors.Is(err, runFailure) {
+				t.Fatalf("error = %v, want wrapped run failure", err)
+			}
+			if got := strings.Contains(err.Error(), logPath); got != writeCurrentLog {
+				t.Fatalf("error = %v, log path present = %t, want %t", err, got, writeCurrentLog)
+			}
+			want := "previous run"
+			if writeCurrentLog {
+				want = "current run"
+			}
+			contents, readErr := os.ReadFile(logPath)
+			if readErr != nil || string(contents) != want {
+				t.Fatalf("log = %q, %v; want %q", contents, readErr, want)
+			}
+		})
+	}
+}
+
 func TestUnityBuildLogDoesNotFollowLinkedLog(t *testing.T) {
 	directory := t.TempDir()
 	destination := filepath.Join(directory, "target.log")

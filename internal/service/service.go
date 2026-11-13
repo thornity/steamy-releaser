@@ -454,6 +454,9 @@ func (s *Service) runTargetBuilds(ctx context.Context, profileName string, plan 
 				}
 				if runErr != nil {
 					err := runErr
+					if unityLog != nil && unityLog.preserved {
+						err = fmt.Errorf("%w (Unity log: %s)", runErr, unityLog.destination)
+					}
 					s.Reporter.Report(release.Event{Level: release.LevelError, Target: target.Name, Kind: "build-failed", Message: err.Error()})
 					errorsFound <- err
 					cancel()

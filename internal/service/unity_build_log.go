@@ -23,6 +23,7 @@ type unityBuildLog struct {
 	name        string
 	destination string
 	identity    fs.FileInfo
+	preserved   bool
 }
 
 func prepareUnityBuildLog(command release.CommandPlan) (release.CommandPlan, *unityBuildLog, error) {
@@ -77,6 +78,7 @@ func (log *unityBuildLog) finish() (bool, error) {
 	if err := os.Rename(filepath.Join(log.directory, log.name), log.destination); err != nil {
 		return succeeded, fmt.Errorf("log remains at %s: %w", filepath.Join(log.directory, log.name), err)
 	}
+	log.preserved = true
 	_ = os.Remove(log.directory)
 	return succeeded, readErr
 }
